@@ -3,13 +3,108 @@
 <head>
   <meta charset="UTF-8">
   <title>Mini Minecraft</title>
-  <link rel="stylesheet" href="style.css">
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #info {
+      position: absolute;
+      top: 10px;
+      width: 100%;
+      text-align: center;
+      color: white;
+      font-family: Arial;
+      z-index: 10;
+    }
+  </style>
 </head>
 <body>
-  <div id="info">Clique para jogar | WASD = mover | Mouse = olhar | Clique = remover | Botão direito = criar</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/PointerLockControls.js"></script>
-  <script src="script.js"></script>
+<div id="info">Clique para jogar | WASD = mover | Mouse = olhar | Clique = remover | Botão direito = criar</div>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js";
+import { PointerLockControls } from "https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/PointerLockControls.js";
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const light = new THREE.HemisphereLight(0xffffff, 0x444444);
+scene.add(light);
+
+const controls = new PointerLockControls(camera, document.body);
+document.body.addEventListener("click", () => controls.lock());
+scene.add(controls.getObject());
+
+const geometry = new THREE.BoxGeometry();
+const material = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+
+const blocos = [];
+
+for (let x = -10; x < 10; x++) {
+  for (let z = -10; z < 10; z++) {
+    const bloco = new THREE.Mesh(geometry, material);
+    bloco.position.set(x, 0, z);
+    scene.add(bloco);
+    blocos.push(bloco);
+  }
+}
+
+const keys = {};
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+const raycaster = new THREE.Raycaster();
+
+document.addEventListener("mousedown", (event) => {
+  raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+  const intersects = raycaster.intersectObjects(blocos);
+
+  if (intersects.length > 0) {
+    const obj = intersects[0].object;
+
+    if (event.button === 0) {
+      scene.remove(obj);
+      blocos.splice(blocos.indexOf(obj), 1);
+    }
+
+    if (event.button === 2) {
+      const novo = new THREE.Mesh(geometry, material);
+      novo.position.copy(obj.position).add(intersects[0].face.normal);
+      scene.add(novo);
+      blocos.push(novo);
+    }
+  }
+});
+
+window.addEventListener("contextmenu", e => e.preventDefault());
+
+camera.position.y = 2;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const speed = 0.1;
+  if (keys["w"]) controls.moveForward(speed);
+  if (keys["s"]) controls.moveForward(-speed);
+  if (keys["a"]) controls.moveRight(-speed);
+  if (keys["d"]) controls.moveRight(speed);
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
 </body>
 </html>
