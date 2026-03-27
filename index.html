@@ -2,14 +2,10 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Mini Minecraft</title>
+<title>Minecraft Web</title>
 
 <style>
-body {
-    margin: 0;
-    overflow: hidden;
-}
-
+body { margin: 0; overflow: hidden; }
 #info {
     position: absolute;
     top: 10px;
@@ -25,81 +21,134 @@ body {
 <body>
 
 <div id="info">
-Clique para jogar | WASD = mover | Mouse = olhar
+Clique para jogar | WASD mover | Mouse olhar | Clique esquerdo = quebrar | Direito = construir | Espaço = pular
 </div>
 
 <script type="module">
 
-import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+import * as THREE from 'https://esm.sh/three@0.152.2';
+import { PointerLockControls } from 'https://esm.sh/three@0.152.2/examples/jsm/controls/PointerLockControls.js';
 
-import { PointerLockControls } from 'https://unpkg.com/three@0.152.2/examples/jsm/controls/PointerLockControls.js?module';
-
-// ===== CENA =====
+// CENA
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 
-// ===== CAMERA =====
-const camera = new THREE.PerspectiveCamera(
-    75,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-);
+// CAMERA
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 camera.position.y = 2;
 
-// ===== RENDER =====
+// RENDER
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// ===== CONTROLES =====
+// CONTROLES
 const controls = new PointerLockControls(camera, document.body);
 scene.add(controls.getObject());
 
-document.body.addEventListener("click", () => {
-    controls.lock();
-});
+document.body.addEventListener("click", () => controls.lock());
 
-// ===== LUZ =====
+// LUZ
 const light = new THREE.HemisphereLight(0xffffff, 0x444444);
 scene.add(light);
 
-// ===== CHÃO =====
-const floorGeometry = new THREE.PlaneGeometry(100, 100);
+// CHÃO BASE
+const floorGeometry = new THREE.PlaneGeometry(200, 200);
 const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x228B22 });
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
 floor.rotation.x = -Math.PI / 2;
 scene.add(floor);
 
-// ===== BLOCO =====
-const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
-const cubeMaterial = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
-const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-cube.position.set(0, 0.5, -5);
-scene.add(cube);
+// BLOCOS
+const blocks = [];
+const blockSize = 1;
 
-// ===== MOVIMENTO =====
+const geometry = new THREE.BoxGeometry(1,1,1);
+const material = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+
+// CRIAR MUNDO
+for(let x=-10; x<10; x++){
+    for(let z=-10; z<10; z++){
+        const block = new THREE.Mesh(geometry, material);
+        block.position.set(x, 0.5, z);
+        scene.add(block);
+        blocks.push(block);
+    }
+}
+
+// MOVIMENTO
 const keys = {};
+let velocityY = 0;
+let canJump = false;
 
-document.addEventListener("keydown", (event) => {
-    keys[event.key.toLowerCase()] = true;
+document.addEventListener("keydown", (e)=>{
+    keys[e.key.toLowerCase()] = true;
+
+    if(e.code === "Space" && canJump){
+        velocityY = 0.2;
+        canJump = false;
+    }
 });
 
-document.addEventListener("keyup", (event) => {
-    keys[event.key.toLowerCase()] = false;
+document.addEventListener("keyup", (e)=>{
+    keys[e.key.toLowerCase()] = false;
 });
 
 const speed = 0.1;
 
-// ===== LOOP =====
-function animate() {
+// RAYCAST (quebrar e construir)
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+window.addEventListener("mousedown", (event)=>{
+
+    if(!controls.isLocked) return;
+
+    raycaster.setFromCamera({x:0, y:0}, camera);
+    const intersects = raycaster.intersectObjects(blocks);
+
+    if(intersects.length > 0){
+        const hit = intersects[0];
+
+        // QUEBRAR
+        if(event.button === 0){
+            scene.remove(hit.object);
+            blocks.splice(blocks.indexOf(hit.object),1);
+        }
+
+        // CONSTRUIR
+        if(event.button === 2){
+            const newBlock = new THREE.Mesh(geometry, material);
+            newBlock.position.copy(hit.object.position).add(hit.face.normal);
+            scene.add(newBlock);
+            blocks.push(newBlock);
+        }
+    }
+});
+
+// DESATIVAR MENU DIREITO
+window.addEventListener("contextmenu", e => e.preventDefault());
+
+// LOOP
+function animate(){
     requestAnimationFrame(animate);
 
-    if (controls.isLocked) {
-        if (keys["w"]) controls.moveForward(speed);
-        if (keys["s"]) controls.moveForward(-speed);
-        if (keys["a"]) controls.moveRight(-speed);
-        if (keys["d"]) controls.moveRight(speed);
+    if(controls.isLocked){
+
+        if(keys["w"]) controls.moveForward(speed);
+        if(keys["s"]) controls.moveForward(-speed);
+        if(keys["a"]) controls.moveRight(-speed);
+        if(keys["d"]) controls.moveRight(speed);
+
+        // GRAVIDADE + PULO
+        velocityY -= 0.01;
+        camera.position.y += velocityY;
+
+        if(camera.position.y < 2){
+            camera.position.y = 2;
+            velocityY = 0;
+            canJump = true;
+        }
     }
 
     renderer.render(scene, camera);
@@ -107,9 +156,9 @@ function animate() {
 
 animate();
 
-// ===== AJUSTE DE TELA =====
-window.addEventListener("resize", () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
+// RESIZE
+window.addEventListener("resize", ()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
